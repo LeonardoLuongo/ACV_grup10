@@ -1,30 +1,25 @@
-import os
-from ultralytics import SAM
+import torch
+from sam3.model_builder import build_sam3_video_predictor
+from config import HUGGINGFACE_API_TOKEN
 
-# 1. Definisci il percorso della cartella (come nel tuo screenshot)
-# Modifica l'inizio del percorso se necessario
-path_to_img_folder = os.path.join("dataset", "tracking-2023", "train", "SNMOT-060", "img1")
+from huggingface_hub import login
+login(HUGGINGFACE_API_TOKEN)
 
-# 2. Carica il modello SAM 2 (scaricherà automaticamente 'sam2_b.pt' se non ce l'hai)
-# 'sam2_b.pt' è la versione base (veloce). Usa 'sam2_l.pt' se vuoi più precisione (più lento).
-model = SAM("sam2_b.pt")
-
-# 3. Esegui il Tracking
-# Ultralytics gestisce le cartelle di immagini automaticamente come video.
-# bboxes=None e text="..." dice al modello cosa cercare.
-results = model(
-    source=path_to_img_folder,
-    name="tracking_result", # nome della cartella dove salverà i risultati
-    save=True,              # Salva il video/immagini con le annotazioni
-    stream=True,             # Importante per i video/sequenze lunghe per non saturare la RAM
-    device=0        # Usa la GPU se disponibile
+video_predictor = build_sam3_video_predictor()
+video_path = "./dataset/tracking-2023/train/SNMOT-060/img1" # a JPEG folder or an MP4 video file
+# Start a session
+response = video_predictor.handle_request(
+    request=dict(
+        type="start_session",
+        resource_path=video_path,
+    )
 )
-
-# 4. Loop per processare e visualizzare (opzionale, per vedere in diretta)
-# Per attivare il tracking testuale con SAM2, spesso bisogna fornire il prompt al primo frame.
-# Nota: L'implementazione attuale di SAM2 in Ultralytics è ancora in evoluzione per i prompt testuali puri su video.
-# Il metodo più robusto con SAM2 è fornire un punto o un box iniziale, ma proviamo l'approccio automatico.
-
-for result in results:
-    # Se vuoi visualizzare a schermo ogni frame mentre elabora
-    result.show()
+response = video_predictor.handle_request(
+    request=dict(
+        type="add_prompt",
+        session_id=response["session_id"],
+        frame_index=0, # Arbitrary frame index
+        text="Players",
+    )
+)
+output = response["outputs"]
